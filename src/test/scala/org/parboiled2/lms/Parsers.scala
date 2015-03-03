@@ -9,16 +9,24 @@ trait ParboiledOps extends Base {
   trait Rule
 
   def str(s: Rep[String]): Rep[Rule]
-  def infix_~(lhs: Rep[Rule], rhs: Rep[Rule]): Rep[Rule]
-  def infix_|(lhs: Rep[Rule], rhs: Rep[Rule]): Rep[Rule]
+
+  implicit class RepOps(r: Rep[Rule]) {
+    def ~(l: Rep[Rule]): Rep[Rule] = sequence(r, l)
+    def |(l: Rep[Rule]): Rep[Rule] = firstOf(r, l)
+    def unary_! : Rep[Rule] = not(r)
+    def parse(input: Rep[String]): Rep[Boolean] = parseInput(r, input)
+  }
+
   def zeroOrMore(r: Rep[Rule]): Rep[Rule]
   def oneOrMore(r: Rep[Rule]): Rep[Rule]
   def optional(r: Rep[Rule]): Rep[Rule]
   def &(r: Rep[Rule]): Rep[Rule]
   def not(r: Rep[Rule]): Rep[Rule]
   def rec(r: => Rep[Rule]): Rep[Rule]
+  def sequence(rhs: Rep[Rule], lhs: Rep[Rule]): Rep[Rule]
+  def firstOf(rhs: Rep[Rule], lhs: Rep[Rule]): Rep[Rule]
 
-  def infix_parse(r: Rep[Rule], input: Rep[String]): Rep[Boolean]
+  def parseInput(r: Rep[Rule], input: Rep[String]): Rep[Boolean]
 }
 
 trait ParboiledOpsExp extends ParboiledOps with BaseExp {
@@ -34,8 +42,8 @@ trait ParboiledOpsExp extends ParboiledOps with BaseExp {
   case class Parse(r: Exp[Rule], str: Exp[String]) extends Def[Boolean]
 
   def str(s: Exp[String]): Exp[Rule] = StringLiteral(s)
-  def infix_~(lhs: Exp[Rule], rhs: Exp[Rule]): Exp[Rule] = Sequence(lhs, rhs)
-  def infix_|(lhs: Exp[Rule], rhs: Exp[Rule]): Exp[Rule] = FirstOf(lhs, rhs)
+  def sequence(lhs: Exp[Rule], rhs: Exp[Rule]): Exp[Rule] = Sequence(lhs, rhs)
+  def firstOf(lhs: Exp[Rule], rhs: Exp[Rule]): Exp[Rule] = FirstOf(lhs, rhs)
   def zeroOrMore(r: Exp[Rule]): Exp[Rule] = ZeroOrMore(r)
   def oneOrMore(r: Exp[Rule]): Exp[Rule] = OneOrMore(r)
   def optional(r: Exp[Rule]): Exp[Rule] = Optional(r)
@@ -43,17 +51,7 @@ trait ParboiledOpsExp extends ParboiledOps with BaseExp {
   def not(r: Exp[Rule]): Exp[Rule] = NotPredicate(r)
   def rec(r: => Exp[Rule]): Exp[Rule] = Recursive(() => r)
 
-  def infix_parse(r: Exp[Rule], input: Exp[String]): Exp[Boolean] = Parse(r, input)
-}
-
-trait ScalaGenParboiled extends ScalaGenBase {
-  val IR: ParboiledOpsExp
-  import IR._
-  
-  override def emitNode(sym: Sym[Any], rhs: Def[Any]) = rhs match {
-    case StringLiteral(a) => emitValDef(sym, "StringLiteral" + quote(a))
-    case _ => super.emitNode(sym, rhs)
-  }
+  def parseInput(r: Exp[Rule], input: Exp[String]): Exp[Boolean] = Parse(r, input)
 }
 
 class Parsers extends TutorialFunSuite {
@@ -82,9 +80,9 @@ class Parsers extends TutorialFunSuite {
         }
       }
 
-      def InputLine = &(A ~ "c") ~ oneOrMore("a") ~ B ~ not("a" | "b" | "c")
-      def A: Rep[Rule] = "a" ~ optional(rec(A)) ~ "b"
-      def B: Rep[Rule] = "b" ~ optional(rec(B)) ~ "c"
+      def InputLine = &(A ~ "c") ~ oneOrMore("a") ~ B ~ !(str("a") | "b" | "c")
+      def A: Rep[Rule] = str("a") ~ optional(rec(A)) ~ "b"
+      def B: Rep[Rule] = str("b") ~ optional(rec(B)) ~ "c"
 
       def snippet(x: Rep[String]) = {
         InputLine.parse(x)
