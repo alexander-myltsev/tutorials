@@ -22,7 +22,7 @@ trait ParboiledOps extends Base {
   def optional(r: Rep[Rule]): Rep[Rule]
   def &(r: Rep[Rule]): Rep[Rule]
   def not(r: Rep[Rule]): Rep[Rule]
-  def rec(r: => Rep[Rule]): Rep[Rule]
+  def rec(ruleName: String, r: => Rep[Rule]): Rep[Rule]
   def sequence(rhs: Rep[Rule], lhs: Rep[Rule]): Rep[Rule]
   def firstOf(rhs: Rep[Rule], lhs: Rep[Rule]): Rep[Rule]
 
@@ -38,7 +38,7 @@ trait ParboiledOpsExp extends ParboiledOps with BaseExp {
   case class Optional(r: Exp[Rule]) extends Def[Rule]
   case class AndPredicate(r: Exp[Rule]) extends Def[Rule]
   case class NotPredicate(r: Exp[Rule]) extends Def[Rule]
-  case class Recursive(r: () => Exp[Rule]) extends Def[Rule]
+  case class Recursive(ruleName: String, r: () => Exp[Rule]) extends Def[Rule]
   case class Parse(r: Exp[Rule], str: Exp[String]) extends Def[Boolean]
 
   def str(s: Exp[String]): Exp[Rule] = StringLiteral(s)
@@ -49,7 +49,7 @@ trait ParboiledOpsExp extends ParboiledOps with BaseExp {
   def optional(r: Exp[Rule]): Exp[Rule] = Optional(r)
   def &(r: Exp[Rule]): Exp[Rule] = AndPredicate(r)
   def not(r: Exp[Rule]): Exp[Rule] = NotPredicate(r)
-  def rec(r: => Exp[Rule]): Exp[Rule] = Recursive(() => r)
+  def rec(ruleName: String, r: => Exp[Rule]): Exp[Rule] = Recursive(ruleName, () => r)
 
   def parseInput(r: Exp[Rule], input: Exp[String]): Exp[Boolean] = Parse(r, input)
 }
@@ -75,14 +75,14 @@ class Parsers extends TutorialFunSuite {
           case Optional(r) => emitValDef(sym, s"true // Optional(${quote(r)})")
           case AndPredicate(r) => emitValDef(sym, s"true // AndPredicate(${quote(r)})")
           case NotPredicate(r) => emitValDef(sym, s"true // NotPredicate(${quote(r)})")
-          case Recursive(r) => emitValDef(sym, s"true // Recursive($r)")
+          case Recursive(rn, r) => emitValDef(sym, s"true // Recursive($rn, $r)")
           case _ => super.emitNode(sym, rhs)
         }
       }
 
       def InputLine = &(A ~ "c") ~ oneOrMore("a") ~ B ~ !(str("a") | "b" | "c")
-      def A: Rep[Rule] = str("a") ~ optional(rec(A)) ~ "b"
-      def B: Rep[Rule] = str("b") ~ optional(rec(B)) ~ "c"
+      def A: Rep[Rule] = str("a") ~ optional(rec("A", A)) ~ "b"
+      def B: Rep[Rule] = str("b") ~ optional(rec("B", B)) ~ "c"
 
       def snippet(x: Rep[String]) = {
         InputLine.parse(x)
