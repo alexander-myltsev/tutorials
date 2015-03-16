@@ -1,77 +1,134 @@
 package org.parboiled2.lms
 
 import scala.lms.tutorial._
-import scala.virtualization.lms.common.{Base, BaseExp, ScalaGenBase}
+import scala.virtualization.lms.common._
 
-trait ParboiledOps extends Base {
-  implicit def string2rep(s: String): Rep[Rule] = str(unit(s))
+trait ParboiledOps extends Base with TupleOps {
+  implicit def string2rep(s: String)(implicit ps: Rep[ParserState]): Rep[Rule] = str(unit(s))
 
   trait Rule
+  trait ParserState
 
-  def str(s: Rep[String]): Rep[Rule]
+  def str(s: Rep[String])(implicit pi: Rep[ParserState]): Rep[Rule]
+  def newParserState(input: Rep[String]): Rep[ParserState]
 
   implicit class RepOps(r: Rep[Rule]) {
-    def ~(l: Rep[Rule]): Rep[Rule] = sequence(r, l)
-    def |(l: Rep[Rule]): Rep[Rule] = firstOf(r, l)
-    def unary_! : Rep[Rule] = not(r)
-    def parse(input: Rep[String]): Rep[Boolean] = parseInput(r, input)
+    def ~(l: Rep[Rule])(implicit ps: Rep[ParserState]): Rep[Rule] = sequence(r, l)
+    def |(l: Rep[Rule])(implicit ps: Rep[ParserState]): Rep[Rule] = firstOf(r, l)
+    def unary_!(implicit ps: Rep[ParserState]) : Rep[Rule] = not(r)
+    def parse(ps: Rep[String]): Rep[Boolean] = parseInput(r, ps)
   }
 
-  def zeroOrMore(r: Rep[Rule]): Rep[Rule]
-  def oneOrMore(r: Rep[Rule]): Rep[Rule]
-  def optional(r: Rep[Rule]): Rep[Rule]
-  def &(r: Rep[Rule]): Rep[Rule]
-  def not(r: Rep[Rule]): Rep[Rule]
-  def rec(ruleName: String, r: => Rep[Rule]): Rep[Rule]
-  def sequence(rhs: Rep[Rule], lhs: Rep[Rule]): Rep[Rule]
-  def firstOf(rhs: Rep[Rule], lhs: Rep[Rule]): Rep[Rule]
+  def zeroOrMore(r: Rep[Rule])(implicit ps: Rep[ParserState]): Rep[Rule]
+  def oneOrMore(r: Rep[Rule])(implicit ps: Rep[ParserState]): Rep[Rule]
+  def optional(r: Rep[Rule])(implicit ps: Rep[ParserState]): Rep[Rule]
+  def &(r: Rep[Rule])(implicit ps: Rep[ParserState]): Rep[Rule]
+  def not(r: Rep[Rule])(implicit ps: Rep[ParserState]): Rep[Rule]
+  def rec(ruleName: String, r: => Rep[Rule])(implicit ps: Rep[ParserState]): Rep[Rule]
+  def sequence(rhs: Rep[Rule], lhs: Rep[Rule])(implicit ps: Rep[ParserState]): Rep[Rule]
+  def firstOf(rhs: Rep[Rule], lhs: Rep[Rule])(implicit ps: Rep[ParserState]): Rep[Rule]
 
-  def parseInput(r: Rep[Rule], input: Rep[String]): Rep[Boolean]
+  def parseInput(r: Rep[Rule], ps: Rep[String]): Rep[Boolean]
 }
 
-trait ParboiledOpsExp extends ParboiledOps with BaseExp {
-  case class StringLiteral(str: Exp[String]) extends Def[Rule]
-  case class Sequence(lhs: Exp[Rule], rhs: Exp[Rule]) extends Def[Rule]
-  case class FirstOf(lhs: Exp[Rule], rhs: Exp[Rule]) extends Def[Rule]
-  case class ZeroOrMore(r: Exp[Rule]) extends Def[Rule]
-  case class OneOrMore(r: Exp[Rule]) extends Def[Rule]
-  case class Optional(r: Exp[Rule]) extends Def[Rule]
-  case class AndPredicate(r: Exp[Rule]) extends Def[Rule]
-  case class NotPredicate(r: Exp[Rule]) extends Def[Rule]
-  case class Recursive(ruleName: String, r: () => Exp[Rule]) extends Def[Rule]
-  case class Parse(r: Exp[Rule], str: Exp[String]) extends Def[Boolean]
+trait ParboiledOpsExp extends ParboiledOps with BaseExp with TupleOpsExp {
+  case class ParserStateDef(input: Exp[String], cursor: Exp[Int]) extends Def[ParserState]
 
-  def str(s: Exp[String]): Exp[Rule] = StringLiteral(s)
-  def sequence(lhs: Exp[Rule], rhs: Exp[Rule]): Exp[Rule] = Sequence(lhs, rhs)
-  def firstOf(lhs: Exp[Rule], rhs: Exp[Rule]): Exp[Rule] = FirstOf(lhs, rhs)
-  def zeroOrMore(r: Exp[Rule]): Exp[Rule] = ZeroOrMore(r)
-  def oneOrMore(r: Exp[Rule]): Exp[Rule] = OneOrMore(r)
-  def optional(r: Exp[Rule]): Exp[Rule] = Optional(r)
-  def &(r: Exp[Rule]): Exp[Rule] = AndPredicate(r)
-  def not(r: Exp[Rule]): Exp[Rule] = NotPredicate(r)
-  def rec(ruleName: String, r: => Exp[Rule]): Exp[Rule] = Recursive(ruleName, () => r)
+  case class Empty() extends Def[Rule]
+  case class StringLiteral(str: Exp[String], ps: Exp[ParserState]) extends Def[Rule]
+  case class Sequence(lhs: Exp[Rule], rhs: Exp[Rule], ps: Exp[ParserState]) extends Def[Rule]
+  case class FirstOf(lhs: Exp[Rule], rhs: Exp[Rule], ps: Exp[ParserState]) extends Def[Rule]
+  case class ZeroOrMore(r: Exp[Rule], ps: Exp[ParserState]) extends Def[Rule]
+  case class NotPredicate(r: Exp[Rule], ps: Exp[ParserState]) extends Def[Rule]
+  case class Recursive(ruleName: String, r: () => Exp[Rule], ps: Exp[ParserState]) extends Def[Rule]
+  case class Parse(r: Exp[Rule], ps: Exp[String]) extends Def[Boolean]
 
-  def parseInput(r: Exp[Rule], input: Exp[String]): Exp[Boolean] = Parse(r, input)
+  def str(s: Exp[String])(implicit ps: Exp[ParserState]): Exp[Rule] = StringLiteral(s, ps)
+  def sequence(lhs: Exp[Rule], rhs: Exp[Rule])(implicit ps: Exp[ParserState]): Exp[Rule] = Sequence(lhs, rhs, ps)
+  def firstOf(lhs: Exp[Rule], rhs: Exp[Rule])(implicit ps: Exp[ParserState]): Exp[Rule] = FirstOf(lhs, rhs, ps)
+  def zeroOrMore(r: Exp[Rule])(implicit ps: Exp[ParserState]): Exp[Rule] = ZeroOrMore(r, ps)
+  def oneOrMore(r: Exp[Rule])(implicit ps: Exp[ParserState]): Exp[Rule] = sequence(r, zeroOrMore(r))
+  def optional(r: Exp[Rule])(implicit ps: Exp[ParserState]): Exp[Rule] = firstOf(r, Empty())
+  def &(r: Exp[Rule])(implicit ps: Exp[ParserState]): Exp[Rule] = not(not(r))
+  def not(r: Exp[Rule])(implicit ps: Exp[ParserState]): Exp[Rule] = NotPredicate(r, ps)
+  def rec(ruleName: String, r: => Exp[Rule])(implicit ps: Exp[ParserState]): Exp[Rule] = Recursive(ruleName, () => r, ps)
+
+  def parseInput(r: Exp[Rule], ps: Exp[String]): Exp[Boolean] = Parse(r, ps)
+  def newParserState(input: Exp[String]): Exp[ParserState] = ParserStateDef(input, fresh[Int])
 }
 
 abstract class ParboiledScalaCodeGen[A:Manifest,B:Manifest] extends DslDriver[A,B] with ParboiledOpsExp { q =>
-  override val codegen = new DslGen {
+  override val codegen = new DslGen with ScalaGenTupleOps {
     val IR: q.type = q
 
+    override def remap[C](m: Manifest[C]) = m.runtimeClass.getSimpleName match {
+      case s if s.startsWith("Tuple") => m.runtimeClass.getSimpleName + "[" + m.typeArguments.map(a => structName(a)).mkString(", ") + "]"
+      case _ => super.remap(m)
+    }
+
+    def emitDefDef(sym: Sym[Any], rhs: String): Unit = {
+      stream.println("def " + quote(sym) + " = " + rhs)
+    }
+
     override def emitNode(sym: Sym[Any], rhs: Def[Any]) = rhs match {
-      case StringLiteral(s) => emitValDef(sym, s"true // StringLiteral(${quote(s)})")
-      case Parse(r, input) =>
-        val cursor = fresh[Int]
-        emitVarDecl(cursor)
-        emitValDef(sym, s"true // Parse(${quote(r)}, ${quote(input)}) | cursor: ${quote(cursor)}")
-      case Sequence(l, r) => emitValDef(sym, s"true // Sequence(${quote(l)}, ${quote(r)})")
-      case FirstOf(l, r) => emitValDef(sym, s"true // FirstOf(${quote(l)}, ${quote(r)})")
-      case ZeroOrMore(r) => emitValDef(sym, s"true // ZeroOrMore(${quote(r)})")
-      case OneOrMore(r) => emitValDef(sym, s"true // OneOrMore(${quote(r)})")
-      case Optional(r) => emitValDef(sym, s"true // Optional(${quote(r)})")
-      case AndPredicate(r) => emitValDef(sym, s"true // AndPredicate(${quote(r)})")
-      case NotPredicate(r) => emitValDef(sym, s"true // NotPredicate(${quote(r)})")
-      case Recursive(rn, r) => emitValDef(sym, s"true // Recursive($rn, $r)")
+      case ParserStateDef(input, cursor: Sym[Variable[Any]]) =>
+        emitVarDef(cursor, "0")
+      case Empty() => emitValDef(sym, "true")
+      case StringLiteral(s, psSym: Sym[_]) =>
+        val Def(ps: ParserStateDef) = psSym
+        val qpsc = quote(ps.cursor)
+        val qpsi = quote(ps.input)
+        emitDefDef(sym, s"""{
+           |  val len = ${quote(s)}.length
+           |  if ($qpsc + len <= $qpsi.length && $qpsi.substring($qpsc, $qpsc + len) == ${quote(s)}) { $qpsc += len; true }
+           |  else false
+           |}""".stripMargin)
+      case Parse(r, ps) =>
+        emitValDef(sym, s"${quote(r)}")
+      case Sequence(l, r, psSym: Sym[_]) =>
+        val Def(ps: ParserStateDef) = psSym
+        val qpsc = quote(ps.cursor)
+        emitDefDef(sym,s"""{
+             |  val save = $qpsc
+             |  if (${quote(l)} && ${quote(r)}) true
+             |  else {
+             |    $qpsc = save
+             |    false
+             |  }
+             |}""".stripMargin)
+      case FirstOf(l, r, psSym: Sym[_]) =>
+        val Def(ps: ParserStateDef) = psSym
+        val qpsc = quote(ps.cursor)
+        emitDefDef(sym, s"""{
+           |  val save = $qpsc
+           |  if (${quote(l)}) true
+           |  else {
+           |    $qpsc = save
+           |    ${quote(r)}
+           |  }
+           |}""".stripMargin)
+      case ZeroOrMore(r, psSym: Sym[_]) =>
+        val Def(ps: ParserStateDef) = psSym
+        val qpsc = quote(ps.cursor)
+        emitDefDef(sym,
+          s"""{
+           |  var save = $qpsc
+           |  while (${quote(r)}) {
+           |    save = $qpsc
+           |  }
+           |  $qpsc = save
+           |  true
+           |}""".stripMargin)
+      case NotPredicate(r, psSym: Sym[_]) =>
+        val Def(ps: ParserStateDef) = psSym
+        val qpsc = quote(ps.cursor)
+        emitDefDef(sym, s"""{
+           |  val save = $qpsc
+           |  val r = ${quote(r)}
+           |  $qpsc = save
+           |  !r
+           |}""".stripMargin)
+      case Recursive(rn, r, psSym: Sym[_]) => ???
       case _ => super.emitNode(sym, rhs)
     }
   }
@@ -82,13 +139,19 @@ class Parsers extends TutorialFunSuite {
 
   test("1") {
     val snippet = new ParboiledScalaCodeGen[String, Boolean] {
-      def InputLine = &(A ~ "c") ~ oneOrMore("a") ~ B ~ !(str("a") | "b" | "c")
-      def A: Rep[Rule] = str("a") ~ optional(rec("A", A)) ~ "b"
-      def B: Rep[Rule] = str("b") ~ optional(rec("B", B)) ~ "c"
+      def snippet(input: Rep[String]) = {
+        implicit val ps: Rep[ParserState] = newParserState(input)
 
-      def snippet(x: Rep[String]) = InputLine.parse(x)
+//        def InputLine = &(A ~ "c") ~ oneOrMore("a") ~ B ~ !(str("a") | "b" | "c")
+//        def A: Rep[Rule] = str("a") ~ optional(rec("A", A)) ~ "b"
+//        def B: Rep[Rule] = str("b") ~ optional(rec("B", B)) ~ "c"
+
+        def InputLine = &(str("a") ~ "b") ~ "abc" ~ optional(":") ~ oneOrMore("p")
+
+        InputLine.parse(input)
+      }
     }
     snippet.dumpGeneratedCode = true
-    println(snippet.eval("abc"))
+    println(snippet.eval("abc:pppppp"))
   }
 }
